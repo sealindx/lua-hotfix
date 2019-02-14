@@ -5,6 +5,8 @@ local locals
 
 local collect_uv
 
+local format = string.format
+
 local function printE( ... )
     print("[fixhot] ", ...)
 end
@@ -74,10 +76,10 @@ local function getupvalues(f, uvf, uvt, unique, fname)
                 end
             else
                 if t == "function" then
-                    -- 当一个模块中出现两个相同函数名时，看看是否存在二义性
+                    -- 当一个模块中出现两个相同函数名时，看看是否存在二义性，是否唯一
                     if uvf[name].value and reloader.ambiguity then
                         if uvf[name].value ~= value then
-                            printE(string.format("%s ambiguity 1 reference(%s) now value: %s, old value: %s", 
+                            error(format("%s ambiguity reference(%s) now value: %s, old value: %s", 
                                 fname or "", name, value, uvf[name].value))
                         end
                     end
@@ -108,7 +110,7 @@ collect_uv = function( tname, tb, uvf, uvt, ismoudle )
 
     for k,v in pairs(tb) do
         if type(v) == "function" then
-            local key = string.format("%s.%s", tname, k)
+            local key = format("%s.%s", tname, k)
             uvf[key] = {func = {}, value = v}
             getupvalues(v, uvf, uvt, unique, k)
         end
@@ -143,8 +145,6 @@ local function push_new_func_upvalues(of, ot, f)
 end
 
 local function patch_local_func(of, ot, fname, f)
-    push_new_func_upvalues(of, ot, f)
-    
     local function tmpf( )
         local up = f
     end
@@ -170,35 +170,49 @@ end
 local function patch_func(t, k, f)
     local of = t.__of
     local ot = t.__ot
+    local check = t.__check
 
-    assert(type(f) == "function")
+    assert(type(f) == "function", format("hotfix %s failed, it's type is not function", k))
 
     if of[k] then
-        patch_local_func(of, ot, k, f)
+        push_new_func_upvalues(of, ot, f)
         
+        if not check then
+            patch_local_func(of, ot, k, f)
+        end
+
         if is_table_func(k) then
             local keys = tsplit(k, ".")
             local tb_func = ot[keys[1]]
             local vt = tb_func.value
 
-            assert(vt, string.format("1 hotfix failed, invalid function %s", k))
-            vt[keys[2]] = f
+            assert(vt, format("1. hotfix failed, invalid function %s", k))
+
+            if not check then
+                vt[keys[2]] = f
+            end
         end
     else
         if not is_table_func(k) then  -- 方法名不能是一个表里面的方法
             local vt = ot.__moudle.value
 
             if vt[k] then
-                patch_local_func(of, ot, k, f)
-                vt[k] = f
+                push_new_func_upvalues(of, ot, f)
+        
+                if not check then
+                    patch_local_func(of, ot, k, f)
+                    vt[k] = f
+                end
             else
-                error("2 hotfix failed, invalid function " .. k)
+                error("2, hotfix failed, invalid function " .. k)
             end
+        else
+            error("3. hotfix failed, invalid function " .. k)
         end
     end
 end
 
-local function load_new_moudle(moudle, uvf, uvt)
+local function load_new_moudle(moudle, uvf, uvt, check)
     local _env = _ENV
 
     local function global_write(t, k, v)
@@ -207,13 +221,17 @@ local function load_new_moudle(moudle, uvf, uvt)
             if type(v) == "function" then
                 push_new_func_upvalues(uvf, uvt, v)
             end
-            _env[k] = v
+
+            if not check then
+                _env[k] = v
+            end
         else
             error("forbid added a new global function " .. k)
         end
     end
 
-    local _U = setmetatable({__of = uvf, __ot = uvt}, {__newindex = patch_func})
+    local _u = {__of = uvf, __ot = uvt, __check = check}
+    local _U = setmetatable(_u, {__newindex = patch_func})
     local function hotfix_func(fname, func)
         patch_func(_U, fname, func)
     end
@@ -229,9 +247,9 @@ local function load_new_moudle(moudle, uvf, uvt)
         setmetatable(_U, nil)
         global_mt.__newindex = _ENV
         
-        assert(ok, string.format("error: pcall new moudle(%s) failed: %s", moudle, err))
+        assert(ok, format("error: pcall new moudle(%s) failed: %s", moudle, err))
     else
-        error(string.format("load file %s error: %s", moudle, err))
+        error(format("load file %s error: %s", moudle, err))
     end
 end
 
@@ -241,8 +259,6 @@ local function cache_func_name(t, fname, f)
     local of = t.__of
     local ot = t.__ot
     
-    local sformat = string.format
-
     local function collect_locals(func)
         if not func then
             return
@@ -258,7 +274,7 @@ local function cache_func_name(t, fname, f)
             if name ~= "_ENV" and not dump_env[name] then
                 if not locals[name] then
                     locals[name] = true
-                    locals[#locals + 1] = sformat("local %s\n", name)
+                    locals[#locals + 1] = format("local %s\n", name)
                 end
             end
             
@@ -294,8 +310,7 @@ local function wrap_locals(moudle, content)
     local insert = table.insert
 
     if not file then
-        printE("can not read file " .. moudle)
-        return
+        error("can not read the file: " .. moudle)
     end
 
     if #locals > 0 then
@@ -336,7 +351,8 @@ local function _init(moudle, uvf, uvt)
     fixfname_tb = {}
     locals = {}
 
-    local _U = setmetatable({__of = uvf, __ot = uvt}, {__newindex = cache_func_name})
+    local _u = {__of = uvf, __ot = uvt}
+    local _U = setmetatable(_u, {__newindex = cache_func_name})
     local function hotfix_func(fname, func)
         cache_func_name(_U, fname, func)
     end
@@ -350,10 +366,8 @@ local function _init(moudle, uvf, uvt)
     wrap_locals(moudle, c)
 end
 
-local function reload_moudle( list )
+local function reload_moudle( list, check )
     local ok, err
-
-    prev_loader_moudle()
 
     for _, info in ipairs(list) do
         local oldmoudle = info[1]
@@ -364,21 +378,32 @@ local function reload_moudle( list )
             assert(type(oldmoudle) == "table")
 
             collect_uv("__moudle", oldmoudle, uvf, uvt, true)
+            if check then
+                _init(newpath, uvf, uvt)
+            end
 
-            _init(newpath, uvf, uvt)
-            load_new_moudle(newpath, uvf, uvt)
+            load_new_moudle(newpath, uvf, uvt, check)
         end
     end
 end
 
 function reloader.moudle( list )
-    local ok, err = pcall(reload_moudle, list)
-    if not ok then
+    prev_loader_moudle()
+
+    local ok, err = pcall(reload_moudle, list, true)
+    if ok then
+        ok, err = pcall(reload_moudle, list)
+        if not ok then
+            printE("reloader.moudle failed:", err)
+        end
+    else
         printE("reloader.moudle error:", err)
     end
     collectgarbage("collect")
 end
 
--- reloader.ambiguity = true
+-- check function is unique
+reloader.ambiguity = true
+
 return reloader
 
