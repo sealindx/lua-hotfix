@@ -18,7 +18,7 @@ obj2:setname("girl")
 
 print("before name:", obj1:getname(), obj2:getname())
 
-hotfix.moudle({{mod, "./new.lua"}})
+hotfix.module({{mod, "./new.lua"}})
 
 print("------------- after update")
 obj1:setname("tomer")

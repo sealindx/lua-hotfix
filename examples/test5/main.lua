@@ -10,7 +10,7 @@ local mod = require "old"
 print("------------- before update")
 mod.foo1()
 
-hotfix.moudle({{mod, "./new.lua"}})
+hotfix.module({{mod, "./new.lua"}})
 
 print("------------- after update")
 mod.foo1()

@@ -12,7 +12,7 @@ print("------------- before update")
 mod.foo1()
 mod.foo2()
 
-hotfix.moudle({{mod, "./new.lua"}})
+hotfix.module({{mod, "./new.lua"}})
 
 print("------------- after update")
 mod.foo1()

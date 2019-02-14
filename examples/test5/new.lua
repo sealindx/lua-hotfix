@@ -1,8 +1,8 @@
 
--- __moudle 指向了 mod 表，也就是在 main.lua 中 hotfix.moudle({{mod, "./new.lua"}}) 的 mod 表
-local __moudle
+-- __module 指向了 mod 表，也就是在 main.lua 中 hotfix.moudle({{mod, "./new.lua"}}) 的 mod 表
+local __module
 
 fix("cmd.show", function( )
 	print("NEW cmd.show()")
-	__moudle.foo2()
+	__module.foo2()
 end)

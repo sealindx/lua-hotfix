@@ -28,7 +28,7 @@ for k,v in pairs(_ENV) do
     dump_env[k] = v
 end
 
-local function prev_loader_moudle( )
+local function prev_loader_module( )
     for k,v in pairs(package.loaded) do
         catch_package[v] = k 
     end
@@ -99,12 +99,12 @@ local function getupvalues(f, uvf, uvt, unique, fname)
     end
 end
 
-collect_uv = function( tname, tb, uvf, uvt, ismoudle )
+collect_uv = function( tname, tb, uvf, uvt, ismodule )
     assert(tname)
 
     local unique = {}
 
-    if ismoudle and not uvt[tname] then
+    if ismodule and not uvt[tname] then
         uvt[tname] = {value = tb}
     end
 
@@ -134,6 +134,8 @@ local function push_new_func_upvalues(of, ot, f)
                 elseif ot[name].value then
                     debug.setupvalue(f, i, detail.value)
                 end
+            else
+                error(format("Its value(%s) could not be found in the old module", name))
             end
         else
             if type(value) == "function" then
@@ -194,7 +196,7 @@ local function patch_func(t, k, f)
         end
     else
         if not is_table_func(k) then  -- 方法名不能是一个表里面的方法
-            local vt = ot.__moudle.value
+            local vt = ot.__module.value
 
             if vt[k] then
                 push_new_func_upvalues(of, ot, f)
@@ -212,7 +214,7 @@ local function patch_func(t, k, f)
     end
 end
 
-local function load_new_moudle(moudle, uvf, uvt, check)
+local function load_new_module(module, uvf, uvt, check)
     local _env = _ENV
 
     local function global_write(t, k, v)
@@ -238,7 +240,7 @@ local function load_new_moudle(moudle, uvf, uvt, check)
 
     local global_mt = {__index = _ENV, __newindex = global_write}
     local env = setmetatable({FIX = _U, fix = hotfix_func}, global_mt) -- 读写全局变量，直接作用在旧的模块中，提高效率
-    local _, func, err = findloader(moudle, env)
+    local _, func, err = findloader(module, env)
     if func then
         ok, err = pcall(func)
 
@@ -247,9 +249,9 @@ local function load_new_moudle(moudle, uvf, uvt, check)
         setmetatable(_U, nil)
         global_mt.__newindex = _ENV
         
-        assert(ok, format("error: pcall new moudle(%s) failed: %s", moudle, err))
+        assert(ok, format("error: pcall new module(%s) failed: %s", module, err))
     else
-        error(format("load file %s error: %s", moudle, err))
+        error(format("load file %s error: %s", module, err))
     end
 end
 
@@ -293,24 +295,24 @@ local function cache_func_name(t, fname, f)
         collect_locals(func)
     end
 
-    if not ot.__moudle then
+    if not ot.__module then
         return
     end
 
-    local mf = ot.__moudle.value[fname]
+    local mf = ot.__module.value[fname]
     if mf  and type(mf) == "function" then
         collect_locals(mf)
     end
 end
 
-local function wrap_locals(moudle, content)
-    local file = io.open(moudle, "r+")
+local function wrap_locals(module, content)
+    local file = io.open(module, "r+")
     local gsub = string.gsub
     local remove = table.remove
     local insert = table.insert
 
     if not file then
-        error("can not read the file: " .. moudle)
+        error("can not read the file: " .. module)
     end
 
     if #locals > 0 then
@@ -347,7 +349,7 @@ local function wrap_locals(moudle, content)
     io.close(file)
 end
 
-local function _init(moudle, uvf, uvt)
+local function _init(module, uvf, uvt)
     fixfname_tb = {}
     locals = {}
 
@@ -357,47 +359,47 @@ local function _init(moudle, uvf, uvt)
         cache_func_name(_U, fname, func)
     end
 
-    local c, f, err = findloader(moudle, {FIX = _U, fix = hotfix_func})
+    local c, f, err = findloader(module, {FIX = _U, fix = hotfix_func})
     assert(f, err)
 
     local ok, err = pcall(f)
     assert(ok, err)
 
-    wrap_locals(moudle, c)
+    wrap_locals(module, c)
 end
 
-local function reload_moudle( list, check )
+local function reload_module( list, check )
     local ok, err
 
     for _, info in ipairs(list) do
-        local oldmoudle = info[1]
+        local oldmodule = info[1]
         local newpath = info[2]
         local uvf, uvt = {}, {}
 
-        if oldmoudle and newpath then
-            assert(type(oldmoudle) == "table")
+        if oldmodule and newpath then
+            assert(type(oldmodule) == "table")
 
-            collect_uv("__moudle", oldmoudle, uvf, uvt, true)
+            collect_uv("__module", oldmodule, uvf, uvt, true)
             if check then
                 _init(newpath, uvf, uvt)
             end
 
-            load_new_moudle(newpath, uvf, uvt, check)
+            load_new_module(newpath, uvf, uvt, check)
         end
     end
 end
 
-function reloader.moudle( list )
-    prev_loader_moudle()
+function reloader.module( list )
+    prev_loader_module()
 
-    local ok, err = pcall(reload_moudle, list, true)
+    local ok, err = pcall(reload_module, list, true)
     if ok then
-        ok, err = pcall(reload_moudle, list)
+        ok, err = pcall(reload_module, list)
         if not ok then
-            printE("reloader.moudle failed:", err)
+            printE("reloader.module failed:", err)
         end
     else
-        printE("reloader.moudle error:", err)
+        printE("reloader.module error:", err)
     end
     collectgarbage("collect")
 end
