@@ -19,21 +19,22 @@ lua main.lua
 ```
 local hotfix = require "hotfix"
 hotfix.module(list)
-```
+
 其中 module 参数是一个列表，以数组的形式传入，数组中的每一项，包含旧模块表，以及新模块路径，例如：
-```
+
 {
 	{tb1, "./tb1_new.lua"},
 	{tb2, "./tb2_new.lua"}
 }
-```
 这个在测试用例8 中有使用到
+```
+
 
 - 更新局部函数，或者表中的函数
 ```
 fix(name, function)
-```
 其中 name 是需要更新的函数名称，function 是新的函数体，如果要更新 tb1 表里面的方法，要用 *__module* 来取代 tb1，因为 tb1 是做为更新模块入口
+```
 
 
 - 更新全局函数
