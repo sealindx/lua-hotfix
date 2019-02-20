@@ -115,6 +115,13 @@ collect_uv = function( tname, tb, uvf, uvt, ismodule )
             getupvalues(v, uvf, uvt, unique, k)
         end
     end
+
+    -- add metatable support
+    local mt = getmetatable(tb) or {}
+    local mtbase = mt.__index
+    if mtbase and type(mtbase) == "table" then
+        collect_uv(tname, mtbase, uvf, uvt, ismodule)
+    end
 end
 
 local function push_new_func_upvalues(of, ot, f) 

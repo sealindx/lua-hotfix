@@ -1,7 +1,7 @@
 package.path = package.path .. ";../../?.lua"
 
 --[[
-模块多个模块测试
+多个模块一起更新测试
 ]]
 
 local hotfix = require "hotfix"
