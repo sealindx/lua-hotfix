@@ -351,7 +351,6 @@ local function wrap_locals(module, content)
     if #locals > 0 then
         io.output(file)
         io.write(content)
-        locals = nil
     end
     io.close(file)
 end
@@ -373,6 +372,7 @@ local function _init(module, uvf, uvt)
     assert(ok, err)
 
     wrap_locals(module, c)
+    locals = nil
 end
 
 local function reload_module( list, check )
